@@ -143,6 +143,10 @@ class CellposeModel():
         dtype = torch.bfloat16 if use_bfloat16 else torch.float32
         self.net = Transformer(dtype=dtype).to(self.device)
 
+        self.video_mode = False
+        self.video_memory = {}
+        self.next_id = 1
+
         if os.path.exists(self.pretrained_model):
             models_logger.info(f">>>> loading model {self.pretrained_model}")
             self.net.load_model(self.pretrained_model, device=self.device)
@@ -151,7 +155,9 @@ class CellposeModel():
                 raise FileNotFoundError('model file not recognized')
             cache_CPSAM_model_path()
             self.net.load_model(self.pretrained_model, device=self.device)
-        
+
+    def enable_video_mode(self):
+        self.video_mode = True
         
     def eval(self, x, batch_size=8, resample=True, channels=None, channel_axis=None,
              z_axis=None, normalize=True, invert=False, rescale=None, diameter=None,
