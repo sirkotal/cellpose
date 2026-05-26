@@ -298,6 +298,9 @@ class CellposeModel():
         if do_normalization:
             x = transforms.normalize_img(x, **normalize_params)
 
+        if hasattr(self, "video_mode") and self.video_mode:
+            x = self._memory_join_input(x)
+
         dP, cellprob, styles = self._run_net(
             x,
             resample=resample,
@@ -334,6 +337,8 @@ class CellposeModel():
                                         niter=niter,
                                         stitch_threshold=stitch_threshold, 
                                         do_3D=do_3D)
+            if hasattr(self, "video_mode") and self.video_mode:
+                masks = self._apply_memory_bank(masks)
         else:
             masks = np.zeros(0) #pass back zeros if not compute_masks
         
@@ -462,3 +467,56 @@ class CellposeModel():
             models_logger.info("switching back to device %s" % self.device)
             self.device = torch.device(changed_device_from)
         return masks
+
+    def _apply_memory_bank(self, masks):
+        new_memory = {}
+        new_masks = np.zeros_like(masks)
+
+        for label in np.unique(masks):
+            if label == 0:
+                continue
+
+            mask = (masks == label)
+
+            best_id = None
+            best_iou = 0
+
+            for obj_id, obj in self.video_memory.items():
+                prev_mask = obj["mask"]
+                inter = np.logical_and(prev_mask, mask).sum()
+                union = np.logical_or(prev_mask, mask).sum()
+                iou = inter / (union + 1e-6)
+
+                if iou > best_iou:
+                    best_iou = iou
+                    best_id = obj_id
+
+            if best_iou > 0.5:
+                obj_id = best_id
+            else:
+                obj_id = self._next_id
+                self._next_id += 1
+
+            new_memory[obj_id] = {"mask": mask}
+            new_masks[mask] = obj_id
+
+        self._video_memory = new_memory
+        return new_masks
+
+    def _memory_join_input(self, x):
+        if not self.video_memory:
+            return x
+
+        x_cc = x.copy()
+
+        for b in range(x.shape[0]):
+            memory = np.zeros(x.shape[1:3], dtype=np.float32)
+
+            for obj in self.video_memory.values():
+                memory += obj["mask"].astype(np.float32)
+
+            memory = np.clip(memory, 0, 1)
+
+            x_cc[b, ..., 0] = 0.7 * x_cc[b, ..., 0] + 0.3 * memory
+
+        return x_cc
