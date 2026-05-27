@@ -53,13 +53,13 @@ class Transformer(nn.Module):
         if dtype != torch.float32:
             self.dtype = dtype
 
-    def forward(self, x):      
+    def extract_features(self, x):
         # same progression as SAM until readout
         x = self.encoder.patch_embed(x)
-        
+
         if self.encoder.pos_embed is not None:
             x = x + self.encoder.pos_embed
-        
+
         if self.training and self.rdrop > 0:
             nlay = len(self.encoder.blocks)
             rdrop = (torch.rand((len(x), nlay), device=x.device) < 
@@ -73,13 +73,24 @@ class Transformer(nn.Module):
 
         x = self.encoder.neck(x.permute(0, 3, 1, 2))
 
+        return x
+    
+    def decode_features(self, x):
         # readout is changed here
         x1 = self.out(x)
         x1 = F.conv_transpose2d(x1, self.W2, stride = self.ps, padding = 0)
-        
+
+    def forward(self, x, video_memory=None):
+        features = self.extract_features(x)
+
+        if video_memory is not None:
+            features = torch.cat([x, video_memory], dim=1)
+
+        x1 = self.decode_features(features)
+
         # maintain the second output of feature size 256 for backwards compatibility
-           
-        return x1, torch.zeros((x.shape[0], 256), device=x.device)
+    
+        return x1, torch.zeros((features.shape[0], 256), device=features.device)
     
     def load_model(self, PATH, device, strict = False):
         state_dict = torch.load(PATH, map_location = device, weights_only=True)
