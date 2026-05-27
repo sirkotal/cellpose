@@ -299,7 +299,7 @@ class CellposeModel():
             x = transforms.normalize_img(x, **normalize_params)
 
         if hasattr(self, "video_mode") and self.video_mode:
-            x = self._memory_join_input(x)
+            x = self.memory_join_input(x)
 
         dP, cellprob, styles = self._run_net(
             x,
@@ -338,7 +338,7 @@ class CellposeModel():
                                         stitch_threshold=stitch_threshold, 
                                         do_3D=do_3D)
             if hasattr(self, "video_mode") and self.video_mode:
-                masks = self._apply_memory_bank(masks)
+                masks = self.apply_memory_bank(masks)
         else:
             masks = np.zeros(0) #pass back zeros if not compute_masks
         
@@ -494,13 +494,13 @@ class CellposeModel():
             if best_iou > 0.5:
                 obj_id = best_id
             else:
-                obj_id = self._next_id
-                self._next_id += 1
+                obj_id = self.next_id
+                self.next_id += 1
 
             new_memory[obj_id] = {"mask": mask}
             new_masks[mask] = obj_id
 
-        self._video_memory = new_memory
+        self.video_memory = new_memory
         return new_masks
 
     def _memory_join_input(self, x):
