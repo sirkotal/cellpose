@@ -80,6 +80,8 @@ class Transformer(nn.Module):
         x1 = self.out(x)
         x1 = F.conv_transpose2d(x1, self.W2, stride = self.ps, padding = 0)
 
+        return x1
+
     def forward(self, x, video_memory=None):
         features = self.extract_features(x)
 
@@ -215,7 +217,4 @@ class CPnetBioImageIO(Transformer):
             super().load_state_dict(
                 {name: param for name, param in state_dict.items()},
                 strict=False)
-
-
-    
-
+            

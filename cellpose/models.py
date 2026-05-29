@@ -143,9 +143,8 @@ class CellposeModel():
         dtype = torch.bfloat16 if use_bfloat16 else torch.float32
         self.net = Transformer(dtype=dtype).to(self.device)
 
-        self.video_mode = False
-        self.video_memory = {}
-        self.next_id = 1
+        self.video_mode = True
+        self.video_memory = None
 
         if os.path.exists(self.pretrained_model):
             models_logger.info(f">>>> loading model {self.pretrained_model}")
@@ -156,8 +155,8 @@ class CellposeModel():
             cache_CPSAM_model_path()
             self.net.load_model(self.pretrained_model, device=self.device)
 
-    def enable_video_mode(self):
-        self.video_mode = True
+    def reset_video_memory(self):
+        self.video_memory = None
         
     def eval(self, x, batch_size=8, resample=True, channels=None, channel_axis=None,
              z_axis=None, normalize=True, invert=False, rescale=None, diameter=None,
@@ -298,19 +297,46 @@ class CellposeModel():
         if do_normalization:
             x = transforms.normalize_img(x, **normalize_params)
 
-        if hasattr(self, "video_mode") and self.video_mode:
-            x = self.memory_join_input(x)
+        if self.video_mode:
+            features = self.net.extract_features(x)
 
-        dP, cellprob, styles = self._run_net(
-            x,
-            resample=resample,
-            rescale=image_scaling,
-            augment=augment, 
-            batch_size=batch_size, 
-            tile_overlap=tile_overlap, 
-            bsize=bsize,
-            do_3D=do_3D, 
-            anisotropy=anisotropy)
+            if self.feature_memory is not None:
+                if isinstance(features, np.ndarray):
+                    combined_features = np.concatenate([features, self.feature_memory], axis=1)
+                else: 
+                    combined_features = torch.cat([features, self.feature_memory], dim=1)
+            else:
+                combined_features = features
+            
+            yf = self.net.decode(combined_features)
+
+            if isinstance(yf, np.ndarray):
+                dP = yf[..., -3:-1].transpose((3, 0, 1, 2))
+            else:
+                dP = yf[..., -3:-1].permute(3, 0, 1, 2)
+            
+            if isinstance(features, np.ndarray):
+                styles = np.zeros((features.shape[0], 256))
+            else:
+                styles = torch.zeros((features.shape[0], 256), device=features.device)
+            
+            cellprob = yf[..., -1]
+
+            if hasattr(features, 'detach'): # no need for gradient computation
+                self.feature_memory = features.detach()
+            else:
+                self.feature_memory = features.copy()
+        else:
+            dP, cellprob, styles = self._run_net(
+                x,
+                resample=resample,
+                rescale=image_scaling,
+                augment=augment, 
+                batch_size=batch_size, 
+                tile_overlap=tile_overlap, 
+                bsize=bsize,
+                do_3D=do_3D, 
+                anisotropy=anisotropy)
 
         if do_3D and flow3D_smooth:
             if isinstance(flow3D_smooth, (int, float)):
@@ -337,8 +363,6 @@ class CellposeModel():
                                         niter=niter,
                                         stitch_threshold=stitch_threshold, 
                                         do_3D=do_3D)
-            if hasattr(self, "video_mode") and self.video_mode:
-                masks = self.apply_memory_bank(masks)
         else:
             masks = np.zeros(0) #pass back zeros if not compute_masks
         
@@ -467,56 +491,3 @@ class CellposeModel():
             models_logger.info("switching back to device %s" % self.device)
             self.device = torch.device(changed_device_from)
         return masks
-
-    def _apply_memory_bank(self, masks):
-        new_memory = {}
-        new_masks = np.zeros_like(masks)
-
-        for label in np.unique(masks):
-            if label == 0:
-                continue
-
-            mask = (masks == label)
-
-            best_id = None
-            best_iou = 0
-
-            for obj_id, obj in self.video_memory.items():
-                prev_mask = obj["mask"]
-                inter = np.logical_and(prev_mask, mask).sum()
-                union = np.logical_or(prev_mask, mask).sum()
-                iou = inter / (union + 1e-6)
-
-                if iou > best_iou:
-                    best_iou = iou
-                    best_id = obj_id
-
-            if best_iou > 0.5:
-                obj_id = best_id
-            else:
-                obj_id = self.next_id
-                self.next_id += 1
-
-            new_memory[obj_id] = {"mask": mask}
-            new_masks[mask] = obj_id
-
-        self.video_memory = new_memory
-        return new_masks
-
-    def _memory_join_input(self, x):
-        if not self.video_memory:
-            return x
-
-        x_cc = x.copy()
-
-        for b in range(x.shape[0]):
-            memory = np.zeros(x.shape[1:3], dtype=np.float32)
-
-            for obj in self.video_memory.values():
-                memory += obj["mask"].astype(np.float32)
-
-            memory = np.clip(memory, 0, 1)
-
-            x_cc[b, ..., 0] = 0.7 * x_cc[b, ..., 0] + 0.3 * memory
-
-        return x_cc
