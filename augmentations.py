@@ -7,9 +7,9 @@ import numpy as np
 def augment_data(input_items, output_flip, output_app, flip_p=1.0, app_p=1.0):
     transform_flip = A.HorizontalFlip(p=flip_p)
     transform_app = A.Compose([
-        A.ElasticTransform(alpha=420, sigma=10, border_mode=4, p=1.0),
-        #A.RandomBrightnessContrast(p=app_p),
-        A.GaussianBlur(blur_limit=(3, 7), p=app_p),
+        A.ElasticTransform(alpha=800,sigma=7,border_mode=4,p=1.0), # 420
+        A.RandomBrightnessContrast(brightness_range=(0, 0.1), contrast_range=(0, 0.1), p=app_p),
+        A.GaussianBlur(blur_range=(2, 7), p=app_p),
     ])
 
     os.makedirs(output_flip, exist_ok=True)
