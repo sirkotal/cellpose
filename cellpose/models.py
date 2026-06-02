@@ -143,8 +143,8 @@ class CellposeModel():
         dtype = torch.bfloat16 if use_bfloat16 else torch.float32
         self.net = Transformer(dtype=dtype).to(self.device)
 
-        self.video_mode = True
-        self.feature_memory = None
+        #self.video_mode = True
+        #self.feature_memory = None
 
         if os.path.exists(self.pretrained_model):
             models_logger.info(f">>>> loading model {self.pretrained_model}")
@@ -155,8 +155,8 @@ class CellposeModel():
             cache_CPSAM_model_path()
             self.net.load_model(self.pretrained_model, device=self.device)
 
-    def reset_feature_memory(self):
-        self.feature_memory = None
+    '''def reset_feature_memory(self):
+        self.feature_memory = None'''
         
     def eval(self, x, batch_size=8, resample=True, channels=None, channel_axis=None,
              z_axis=None, normalize=True, invert=False, rescale=None, diameter=None,
@@ -297,37 +297,22 @@ class CellposeModel():
         if do_normalization:
             x = transforms.normalize_img(x, **normalize_params)
 
-        if self.video_mode:
-            features = self.net.extract_features(x)
 
-            if self.feature_memory is not None:
-                combined_features = torch.cat([features, self.feature_memory], dim=1)
-            else:
-                combined_features = features
-            
-            yf = self.net.decode_features(combined_features)
-
-            dP = yf[..., -3:-1].permute(3, 0, 1, 2)
-            
-            styles = torch.zeros((features.shape[0], 256), device=features.device)
-            
-            cellprob = yf[..., -1]
-
-            if hasattr(features, 'detach'): # no need for gradient computation
-                self.feature_memory = features.detach()
-            else:
-                self.feature_memory = features.copy()
+        dP, cellprob, styles = self._run_net(
+            x,
+            resample=resample,
+            rescale=image_scaling,
+            augment=augment, 
+            batch_size=batch_size, 
+            tile_overlap=tile_overlap, 
+            bsize=bsize,
+            do_3D=do_3D, 
+            anisotropy=anisotropy)
+        
+        '''if hasattr(self.net.feature_memory, 'detach'): # no need for gradient computation
+            self.feature_memory = self.net.feature_memory.detach()
         else:
-            dP, cellprob, styles = self._run_net(
-                x,
-                resample=resample,
-                rescale=image_scaling,
-                augment=augment, 
-                batch_size=batch_size, 
-                tile_overlap=tile_overlap, 
-                bsize=bsize,
-                do_3D=do_3D, 
-                anisotropy=anisotropy)
+            self.feature_memory = self.net.feature_memory.copy()'''
 
         if do_3D and flow3D_smooth:
             if isinstance(flow3D_smooth, (int, float)):
