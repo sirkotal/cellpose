@@ -31,7 +31,7 @@ class Transformer(nn.Module):
         # readout weights for nout output channels
         # if nout is changed, weights will not load correctly from pretrained Cellpose-SAM
         self.nout = nout
-        self.out = nn.Conv2d(256, self.nout * ps**2, kernel_size=1)
+        self.out = nn.Conv2d(512, self.nout * ps**2, kernel_size=1) # memory increases channels to 512 instead of 256
 
         # W2 reshapes token space to pixel space, not trainable
         self.W2 = nn.Parameter(torch.eye(self.nout * ps**2).reshape(self.nout*ps**2, self.nout, ps, ps), 
@@ -80,13 +80,14 @@ class Transformer(nn.Module):
         x1 = self.out(x)
         x1 = F.conv_transpose2d(x1, self.W2, stride = self.ps, padding = 0)
 
+        print(x1.shape)
         return x1
 
     def forward(self, x, video_memory=None):
         features = self.extract_features(x)
 
         if video_memory is not None:
-            features = torch.cat([x, video_memory], dim=1)
+            features = torch.cat([features, video_memory], dim=1)
 
         x1 = self.decode_features(features)
 

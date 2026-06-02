@@ -144,7 +144,7 @@ class CellposeModel():
         self.net = Transformer(dtype=dtype).to(self.device)
 
         self.video_mode = True
-        self.video_memory = None
+        self.feature_memory = None
 
         if os.path.exists(self.pretrained_model):
             models_logger.info(f">>>> loading model {self.pretrained_model}")
@@ -155,8 +155,8 @@ class CellposeModel():
             cache_CPSAM_model_path()
             self.net.load_model(self.pretrained_model, device=self.device)
 
-    def reset_video_memory(self):
-        self.video_memory = None
+    def reset_feature_memory(self):
+        self.feature_memory = None
         
     def eval(self, x, batch_size=8, resample=True, channels=None, channel_axis=None,
              z_axis=None, normalize=True, invert=False, rescale=None, diameter=None,
@@ -301,24 +301,15 @@ class CellposeModel():
             features = self.net.extract_features(x)
 
             if self.feature_memory is not None:
-                if isinstance(features, np.ndarray):
-                    combined_features = np.concatenate([features, self.feature_memory], axis=1)
-                else: 
-                    combined_features = torch.cat([features, self.feature_memory], dim=1)
+                combined_features = torch.cat([features, self.feature_memory], dim=1)
             else:
                 combined_features = features
             
-            yf = self.net.decode(combined_features)
+            yf = self.net.decode_features(combined_features)
 
-            if isinstance(yf, np.ndarray):
-                dP = yf[..., -3:-1].transpose((3, 0, 1, 2))
-            else:
-                dP = yf[..., -3:-1].permute(3, 0, 1, 2)
+            dP = yf[..., -3:-1].permute(3, 0, 1, 2)
             
-            if isinstance(features, np.ndarray):
-                styles = np.zeros((features.shape[0], 256))
-            else:
-                styles = torch.zeros((features.shape[0], 256), device=features.device)
+            styles = torch.zeros((features.shape[0], 256), device=features.device)
             
             cellprob = yf[..., -1]
 
