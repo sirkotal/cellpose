@@ -39,4 +39,24 @@ for i in range(len(seg_masks) - 1):
     score = calculate_seg_metrics(ground_truth_masks[i], seg_masks_stack[i])
     results.append(score)
 
-print(results)
+iou_results, dice_results = unzip(results)
+
+mean_iou = np.mean(iou_results)
+std_iou = np.std(iou_results)
+median_iou = np.median(iou_results)
+iqr_iou = np.percentile(iou_results, 75) - np.percentile(iou_results, 25)
+
+mean_dice = np.mean(dice_results)
+std_dice = np.std(dice_results)
+median_dice = np.median(dice_results)
+iqr_dice = np.percentile(dice_results, 75) - np.percentile(dice_results, 25)
+
+print("Mean (IoU):", mean_iou)
+print("Std (IoU):", std_iou)
+print("Median (IoU):", median_iou)
+print("IQR (IoU):", iqr_iou)
+
+print("Mean (Dice):", mean_dice)
+print("Std (Dice):", std_dice)
+print("Median (Dice):", median_dice)
+print("IQR (Dice):", iqr_dice)
