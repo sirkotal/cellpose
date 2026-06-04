@@ -82,7 +82,8 @@ class Transformer(nn.Module):
         x1 = self.out(x)
         x1 = F.conv_transpose2d(x1, self.W2, stride = self.ps, padding = 0)
 
-        print(x1.shape)
+        # print("hello")
+        # print("x1 shape:", x1.shape)
         return x1
 
     def forward(self, x, video_memory=None):
