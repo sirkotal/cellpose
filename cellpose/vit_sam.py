@@ -33,6 +33,7 @@ class Transformer(nn.Module):
         self.nout = nout
         self.out = nn.Conv2d(256, self.nout * ps**2, kernel_size=1) # memory increases channels to 512 instead of 256
         self.memory_fusion = nn.Conv2d(512, 256, 1)
+        self.upscale = nn.Conv2d(256, 512, 1)
         self.feature_memory = None
 
         # W2 reshapes token space to pixel space, not trainable
@@ -82,23 +83,23 @@ class Transformer(nn.Module):
         x1 = self.out(x)
         x1 = F.conv_transpose2d(x1, self.W2, stride = self.ps, padding = 0)
 
-        # print("hello")
+        print("hello")
         # print("x1 shape:", x1.shape)
         return x1
 
-    def forward(self, x, video_memory=None):
+    def forward(self, x):
         features = self.extract_features(x)
 
-        if video_memory is not None:
-            features = torch.cat([features, video_memory], dim=1)
-            features = self.memory_fusion(features) # 512 -> 256
-            self.feature_memory = features
+        if self.feature_memory is not None:
+            features = torch.cat([features, self.feature_memory.detach()], dim=1)
+        else:
+            features = self.upscale(features) # 256 -> 512
+        features = self.memory_fusion(features) # 512 -> 256
+        self.feature_memory = features.detach()
 
         x1 = self.decode_features(features)
-
-        # maintain the second output of feature size 256 for backwards compatibility
     
-        return x1, torch.zeros((features.shape[0], 256), device=features.device)
+        return x1, self.feature_memory
     
     def load_model(self, PATH, device, strict = False):
         state_dict = torch.load(PATH, map_location = device, weights_only=True)
