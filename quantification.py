@@ -67,7 +67,6 @@ def create_overlay(frame_t, frame_t_next, threshold=0.05):
 
     return overlay
 
-image_files = sorted(glob.glob("*_cp_masks.png"))
 mask_files = sorted(glob.glob("*.npy"))
 
 results = []
@@ -76,9 +75,7 @@ for i in range(len(mask_files) - 1):
     masks_t = np.load(mask_files[i], allow_pickle=True).item()["masks"]
     masks_t1 = np.load(mask_files[i+1], allow_pickle=True).item()["masks"]
 
-    img = Image.open(image_files[i+1])
-
-    overlay = create_overlay(img, masks_t, masks_t1)
+    overlay = create_overlay(masks_t, masks_t1)
     results.append(overlay)
 
 results = np.stack(results)

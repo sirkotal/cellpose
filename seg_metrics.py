@@ -39,7 +39,7 @@ for i in range(len(seg_masks) - 1):
     score = calculate_seg_metrics(ground_truth_masks[i], seg_masks_stack[i])
     results.append(score)
 
-iou_results, dice_results = unzip(results)
+iou_results, dice_results = zip(*results)
 
 mean_iou = np.mean(iou_results)
 std_iou = np.std(iou_results)

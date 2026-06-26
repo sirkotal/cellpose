@@ -87,7 +87,7 @@ class Transformer(nn.Module):
         # print("x1 shape:", x1.shape)
         return x1
 
-    def forward(self, x):
+    '''def forward(self, x):
         features = self.extract_features(x)
 
         if self.feature_memory is not None:
@@ -95,6 +95,24 @@ class Transformer(nn.Module):
         else:
             features = self.upscale(features) # 256 -> 512
         features = self.memory_fusion(features) # 512 -> 256
+        self.feature_memory = features.detach()
+
+        x1 = self.decode_features(features)
+    
+        return x1, self.feature_memory'''
+
+    def forward(self, x):
+        features = self.extract_features(x)
+
+        if self.feature_memory is not None:
+            memory = self.feature_memory
+        else:
+            memory = torch.zeros_like(features)
+        
+        features = torch.cat([features, memory], dim=1)
+
+        features = self.memory_fusion(features) # 512 -> 256
+        
         self.feature_memory = features.detach()
 
         x1 = self.decode_features(features)
