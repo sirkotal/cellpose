@@ -63,21 +63,28 @@ def _reshape_norm(data, channel_axis=None, normalize_params={"normalize": False}
     Returns:
         list: List of reshaped and normalized data.
     """
-    if (np.array([td.ndim!=3 for td in data]).sum() > 0 or
-        np.array([td.shape[0]!=3 for td in data]).sum() > 0):
-        data_new = []
-        for td in data:
-            if td.ndim == 3:
-                channel_axis0 = channel_axis if channel_axis is not None else np.array(td.shape).argmin()
-                # put channel axis first 
-                td = np.moveaxis(td, channel_axis0, 0)
-                td = td[:3] # keep at most 3 channels
-            if td.ndim == 2 or (td.ndim == 3 and td.shape[0] == 1):
-                td = np.stack((td, 0*td, 0*td), axis=0)
-            elif td.ndim == 3 and td.shape[0] < 3:
-                td = np.concatenate((td, 0*td[:1]), axis=0)
-            data_new.append(td)
-        data = data_new
+
+    is_data_paired = all(
+        isinstance(td, np.ndarray) and td.ndim == 3 and td.shape[0] == 6 for td in data
+    )
+
+    if not is_data_paired:
+        if (np.array([td.ndim != 3 for td in data]).sum() > 0 or
+            np.array([td.shape[0] != 3 for td in data]).sum() > 0):
+            data_new = []
+            for td in data:
+                if td.ndim == 3:
+                    channel_axis0 = channel_axis if channel_axis is not None else np.array(td.shape).argmin()
+                    # put channel axis first
+                    td = np.moveaxis(td, channel_axis0, 0)
+                    td = td[:3]  # keep at most 3 channels
+                if td.ndim == 2 or (td.ndim == 3 and td.shape[0] == 1):
+                    td = np.stack((td, 0 * td, 0 * td), axis=0)
+                elif td.ndim == 3 and td.shape[0] < 3:
+                    td = np.concatenate((td, 0 * td[:1]), axis=0)
+                data_new.append(td)
+            data = data_new
+
     if normalize_params["normalize"]:
         data = [
             normalize_img(td, normalize=normalize_params, axis=0)

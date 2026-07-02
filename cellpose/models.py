@@ -144,7 +144,6 @@ class CellposeModel():
         self.net = Transformer(dtype=dtype).to(self.device)
 
         #self.video_mode = True
-        #self.feature_memory = None
 
         if os.path.exists(self.pretrained_model):
             models_logger.info(f">>>> loading model {self.pretrained_model}")

@@ -83,41 +83,25 @@ class Transformer(nn.Module):
         x1 = self.out(x)
         x1 = F.conv_transpose2d(x1, self.W2, stride = self.ps, padding = 0)
 
-        print("hello")
+        # print("hello")
         # print("x1 shape:", x1.shape)
         return x1
-
-    '''def forward(self, x):
-        features = self.extract_features(x)
-
-        if self.feature_memory is not None:
-            features = torch.cat([features, self.feature_memory.detach()], dim=1)
-        else:
-            features = self.upscale(features) # 256 -> 512
-        features = self.memory_fusion(features) # 512 -> 256
-        self.feature_memory = features.detach()
-
-        x1 = self.decode_features(features)
     
-        return x1, self.feature_memory'''
-
     def forward(self, x):
-        features = self.extract_features(x)
-
-        if self.feature_memory is not None:
-            memory = self.feature_memory
-        else:
-            memory = torch.zeros_like(features)
+        channel_split = x.shape[1] // 2
+        x_mem = x[:, :channel_split]
+        x_frame = x[:, channel_split:]
         
-        features = torch.cat([features, memory], dim=1)
-
-        features = self.memory_fusion(features) # 512 -> 256
+        features_frame = self.extract_features(x_frame)
         
-        self.feature_memory = features.detach()
+        with torch.no_grad():
+            features_mem = self.extract_features(x_mem)
+        
+        features = self.fusion(torch.cat([features_frame, features_mem], dim=1))
 
         x1 = self.decode_features(features)
-    
-        return x1, self.feature_memory
+        
+        return x1, torch.zeros((features.shape[0], 256), device=features.device)
     
     def load_model(self, PATH, device, strict = False):
         state_dict = torch.load(PATH, map_location = device, weights_only=True)
