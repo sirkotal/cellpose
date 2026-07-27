@@ -3,6 +3,7 @@ import numpy as np
 import tifffile as tiff
 from cellpose import models, train
 import cv2
+import torch
 
 def create_tif_stack(image_path, mask_path):
     imgs = tiff.imread(image_path)
@@ -16,6 +17,27 @@ def create_tif_stack(image_path, mask_path):
         mask_list.append(masks[t])
    
     return image_list, mask_list
+
+def build_pairs(frames, masks, video_starts):
+    paired_imgs = []
+    paired_masks = []
+    for i, (curr, m) in enumerate(zip(frames, masks)):
+        if i in video_starts:
+            prev = curr 
+        else:
+            prev = frames[i - 1]
+
+        prev_2d = np.squeeze(prev)
+        curr_2d = np.squeeze(curr)
+
+        prev_3ch = np.stack([prev_2d, prev_2d, prev_2d], axis=0)  # (3, H, W)
+        curr_3ch = np.stack([curr_2d, curr_2d, curr_2d], axis=0)  # (3, H, W)
+
+        stacked = np.concatenate([prev_3ch, curr_3ch], axis=0).astype(np.float32)
+
+        paired_imgs.append(stacked)
+        paired_masks.append(m)
+    return paired_imgs, paired_masks
 
 images = []
 labels = []
